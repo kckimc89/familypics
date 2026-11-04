@@ -1,6 +1,7 @@
-// Public client settings only. NEVER insert service_role or R2 secret here.
+// Example ONLY. When upgrading an existing site, KEEP your current config.js.
 window.FAMILY_PHOTO_CONFIG = {
-  supabaseUrl: 'https://exznjzpuqlkakvqffsja.supabase.co',
-  supabaseAnonKey: 'sb_publishable_HY9M29JfxK9DfSQkeTXydg_892L5D33',
-  workerUrl: 'https://YOUR_WORKER.YOUR_SUBDOMAIN.workers.dev'
+  supabaseUrl: 'https://YOUR_PROJECT.supabase.co',
+  supabaseAnonKey: 'YOUR_SUPABASE_PUBLISHABLE_KEY',
+  workerUrl: 'https://YOUR_WORKER.YOUR_SUBDOMAIN.workers.dev',
+  photoWritesVerified: false
 };
