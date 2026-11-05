@@ -1,4 +1,4 @@
-/* 우리 가족 사진관 MASTER V1.5 — GitHub Pages + Supabase */
+/* 우리 가족 사진관 MASTER V1.5.1 — GitHub Pages + Supabase */
 'use strict';
 const $=id=>document.getElementById(id);
 const hide=(id,yes=true)=>$(id).classList.toggle('hidden',yes);
@@ -164,15 +164,40 @@ bind();const invitation=new URLSearchParams(location.search).get('invite');if(in
    if(isManager(g)){
     const controls=document.createElement('div');controls.className='shared-group-actions';
     const edit=document.createElement('button');edit.type='button';edit.textContent='이름·분류 수정';
-    edit.onclick=async()=>{
-     const next=prompt('묶음 이름을 입력하세요',g.name);if(next===null)return;
-     const name=next.trim();if(!name||name.length>80){toast('이름은 1~80글자로 입력하세요.');return}
-     const cats=prompt('분류: child / family / child,family',g.galleries.join(','));if(cats===null)return;
-     const values=[...new Set(cats.toLowerCase().split(',').map(s=>s.trim()).filter(Boolean))];
-     if(!values.length||values.some(v=>!['child','family'].includes(v))){toast('분류는 child, family 중에서 선택하세요.');return}
-     edit.disabled=true;
-     try{assert(await sb.from('photo_groups').update({name,galleries:values}).eq('id',g.id).eq('family_id',familyId).select('id').single());toast('묶음을 수정했습니다.');await reload()}
-     catch(e){toast('수정 실패: '+e.message)}finally{edit.disabled=false}
+    edit.onclick=()=>{
+     // 편집은 신규 묶음 입력창과 분리합니다. 기존 묶음의 ID만 수정합니다.
+     if(card.querySelector('.shared-inline-editor'))return;
+     const form=document.createElement('form');form.className='shared-inline-editor';
+     const nameLabel=document.createElement('label');nameLabel.textContent='수정할 사진묶음 이름';
+     const nameInput=document.createElement('input');nameInput.type='text';nameInput.maxLength=80;nameInput.required=true;nameInput.value=g.name;
+     nameLabel.append(nameInput);
+     const fieldset=document.createElement('fieldset');fieldset.className='space-select';
+     const legend=document.createElement('legend');legend.textContent='사진관 분류 (한 가지 이상 선택)';fieldset.append(legend);
+     const checks={};
+     for(const [key,label] of [['child','아이의 사진'],['family','가족의 사진']]){
+      const lab=document.createElement('label');lab.className='check';
+      const input=document.createElement('input');input.type='checkbox';input.checked=(g.galleries||[]).includes(key);
+      checks[key]=input;lab.append(input,document.createTextNode(label));fieldset.append(lab);
+     }
+     const actions=document.createElement('div');actions.className='shared-edit-actions';
+     const save=document.createElement('button');save.type='submit';save.className='primary';save.textContent='변경 저장';
+     const cancel=document.createElement('button');cancel.type='button';cancel.textContent='취소';
+     cancel.onclick=()=>{form.remove();edit.disabled=false;};
+     actions.append(save,cancel);form.append(nameLabel,fieldset,actions);
+     card.append(form);edit.disabled=true;nameInput.focus();
+     form.addEventListener('submit',async e=>{
+      e.preventDefault();
+      const name=nameInput.value.trim();
+      const values=Object.entries(checks).filter(([,box])=>box.checked).map(([key])=>key);
+      if(!name||name.length>80){toast('이름을 1~80글자로 입력하세요.');nameInput.focus();return}
+      if(!values.length){toast('사진관 분류를 하나 이상 선택하세요.');return}
+      save.disabled=true;cancel.disabled=true;save.textContent='저장 중…';
+      try{
+       assert(await sb.from('photo_groups').update({name,galleries:values}).eq('id',g.id).eq('family_id',familyId).select('id').single());
+       // 편집 성공 후 목록 재조회. 서버 저장 실패 시 기존 항목을 유지합니다.
+       toast('변경 사항을 저장했습니다.');await reload();
+      }catch(err){toast('변경 저장 실패: '+err.message);save.disabled=false;cancel.disabled=false;save.textContent='변경 저장'}
+     });
     };
     const del=document.createElement('button');del.type='button';del.className='danger';del.textContent='묶음 삭제';
     del.onclick=async()=>{
