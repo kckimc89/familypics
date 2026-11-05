@@ -41,3 +41,15 @@
 .practice-media img,.practice-media video{max-width:100%;max-height:54vh;width:auto;height:auto;object-fit:contain;border-radius:8px}
 .practice-media{display:flex;align-items:center;justify-content:center;min-height:180px}
 @media(max-width:560px){.practice-group-row{align-items:stretch}.practice-group-row label{flex-basis:100%}.practice-card video{height:112px}}
+
+/* MASTER V1.5 persistent group metadata */
+.shared-create{display:grid;gap:12px;padding:14px;margin:12px 0;background:#faf7f2;border:1px solid #e8ded1;border-radius:14px}
+.shared-create>label{display:grid;gap:6px;font-weight:600}
+.shared-create input[type=text]{width:100%;padding:12px;border:1px solid #ddcfc2;border-radius:10px;font:inherit}
+.shared-create .space-select{margin:0}
+.shared-create .primary{justify-self:start}
+.shared-groups-list{display:grid;gap:10px;margin:12px 0}
+.shared-group-card{display:flex;justify-content:space-between;gap:12px;align-items:center;border:1px solid #e5dace;border-radius:12px;padding:14px;background:white;flex-wrap:wrap}
+.shared-group-info{display:grid;gap:5px}.shared-group-info small{color:#786e64}
+.shared-group-actions{display:flex;gap:7px;flex-wrap:wrap}
+@media(max-width:640px){.shared-group-actions{width:100%}.shared-group-actions button{flex:1}.shared-create .primary{width:100%}}

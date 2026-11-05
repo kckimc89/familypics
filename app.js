@@ -1,4 +1,4 @@
-/* 우리 가족 사진관 MASTER V1.3 — GitHub Pages + Supabase */
+/* 우리 가족 사진관 MASTER V1.5 — GitHub Pages + Supabase */
 'use strict';
 const $=id=>document.getElementById(id);
 const hide=(id,yes=true)=>$(id).classList.toggle('hidden',yes);
@@ -142,4 +142,71 @@ bind();const invitation=new URLSearchParams(location.search).get('invite');if(in
  function showStageWithoutStop(item){const host=$('practiceMedia');host.replaceChildren();const el=document.createElement(item.file.type.startsWith('video/')?'video':'img');el.src=item.url;if(el.tagName==='VIDEO'){el.controls=true;el.playsInline=true}else el.alt=item.name;host.append(el);$('previewPosition').textContent=`${title()} · ${active+1} / ${visible.length}`;$('previewTitle').textContent=item.name;}
  document.addEventListener('keydown',e=>{if($('previewModal').classList.contains('hidden'))return;if(e.key==='Escape')leave();else if(!$('previewStage').classList.contains('hidden')&&e.key==='ArrowRight')showStage(active+1);else if(!$('previewStage').classList.contains('hidden')&&e.key==='ArrowLeft')showStage(active-1)});
  window.addEventListener('pagehide',clearAll);redraw();
+})();
+
+// MASTER V1.5: persistent shared GROUP METADATA only. No media upload is performed here.
+(function setupPersistedGroups(){
+ const ids=['sharedGroupsButton','sharedGroupsModal','sharedGroupName','sharedGroupsList','sharedGroupsStatus'];
+ if(ids.some(id=>!$(id)))return;
+ let groups=[],loadingGroups=false;
+ const status=s=>{$('sharedGroupsStatus').textContent=s};
+ const isManager=g=>g.created_by===user?.id||role==='admin';
+ const categories=()=>[$('sharedGroupChild').checked?'child':null,$('sharedGroupFamily').checked?'family':null].filter(Boolean);
+ const present=g=>(g.galleries||[]).map(x=>x==='child'?'아이의 사진':'가족의 사진').join(' · ');
+ function renderGroups(){
+  const host=$('sharedGroupsList');host.replaceChildren();
+  for(const g of groups){
+   const card=document.createElement('div');card.className='shared-group-card';
+   const content=document.createElement('div');content.className='shared-group-info';
+   const heading=document.createElement('strong');heading.textContent=g.name;
+   const detail=document.createElement('small');detail.textContent=present(g)+' · '+(g.created_by===user?.id?'내가 만든 묶음':'가족이 만든 묶음')+' · '+new Date(g.created_at).toLocaleDateString('ko-KR');
+   content.append(heading,detail);card.append(content);
+   if(isManager(g)){
+    const controls=document.createElement('div');controls.className='shared-group-actions';
+    const edit=document.createElement('button');edit.type='button';edit.textContent='이름·분류 수정';
+    edit.onclick=async()=>{
+     const next=prompt('묶음 이름을 입력하세요',g.name);if(next===null)return;
+     const name=next.trim();if(!name||name.length>80){toast('이름은 1~80글자로 입력하세요.');return}
+     const cats=prompt('분류: child / family / child,family',g.galleries.join(','));if(cats===null)return;
+     const values=[...new Set(cats.toLowerCase().split(',').map(s=>s.trim()).filter(Boolean))];
+     if(!values.length||values.some(v=>!['child','family'].includes(v))){toast('분류는 child, family 중에서 선택하세요.');return}
+     edit.disabled=true;
+     try{assert(await sb.from('photo_groups').update({name,galleries:values}).eq('id',g.id).eq('family_id',familyId).select('id').single());toast('묶음을 수정했습니다.');await reload()}
+     catch(e){toast('수정 실패: '+e.message)}finally{edit.disabled=false}
+    };
+    const del=document.createElement('button');del.type='button';del.className='danger';del.textContent='묶음 삭제';
+    del.onclick=async()=>{
+     if(!confirm(`「${g.name}」 묶음 정보를 삭제할까요? 이후 사진이 연결되면 사진부터 안전하게 분리해야 합니다.`))return;
+     del.disabled=true;
+     try{assert(await sb.from('photo_groups').delete().eq('id',g.id).eq('family_id',familyId).select('id').single());toast('묶음을 삭제했습니다.');await reload()}
+     catch(e){toast('삭제 실패: '+e.message)}finally{del.disabled=false}
+    };
+    controls.append(edit,del);card.append(controls);
+   }
+   host.append(card);
+  }
+  status(groups.length?`공동 묶음 ${groups.length}개 · 이름과 분류만 서버에 저장됨`:'아직 공동 사진묶음이 없습니다. 첫 묶음을 만들어보세요.');
+ }
+ async function reload(){
+  if(!sb||!user||!familyId){status('로그인 후 이용할 수 있습니다.');return}
+  if(loadingGroups)return;
+  loadingGroups=true;status('서버에서 목록을 불러오는 중…');
+  try{const data=assert(await sb.from('photo_groups').select('id,family_id,name,galleries,created_by,created_at').eq('family_id',familyId).order('created_at',{ascending:false}).limit(500));groups=data||[];renderGroups()}
+  catch(e){status('목록을 읽을 수 없습니다. Supabase에서 V1.5 SQL을 먼저 실행했는지 확인하세요. ('+e.message+')');$('sharedGroupsList').replaceChildren()}
+  finally{loadingGroups=false}
+ }
+ $('sharedGroupsButton').onclick=()=>{if(!user||!familyId){toast('먼저 가족사진관에 로그인하세요.');return}open('sharedGroupsModal');reload()};
+ const leave=()=>close('sharedGroupsModal');$('sharedGroupsClose').onclick=leave;$('sharedGroupsDone').onclick=leave;
+ $('sharedGroupRefresh').onclick=reload;
+ $('sharedGroupCreate').onclick=async()=>{
+  if(!user||!familyId)return;
+  const name=$('sharedGroupName').value.trim(),galleries=categories();
+  if(!name||name.length>80){toast('사진묶음 이름은 1~80글자로 입력하세요.');return}
+  if(!galleries.length){toast('사진관 분류를 하나 이상 선택하세요.');return}
+  const button=$('sharedGroupCreate');button.disabled=true;
+  try{
+   assert(await sb.from('photo_groups').insert({family_id:familyId,created_by:user.id,name,galleries}).select('id').single());
+   $('sharedGroupName').value='';toast('사진묶음 정보를 저장했습니다.');await reload();
+  }catch(e){toast('묶음 저장 실패: '+e.message)}finally{button.disabled=false}
+ };
 })();
