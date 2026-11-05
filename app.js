@@ -1,4 +1,4 @@
-/* 우리 가족 사진관 MASTER V1.5.1 — GitHub Pages + Supabase */
+/* 우리 가족 사진관 MASTER V1.6 — GitHub Pages + Supabase */
 'use strict';
 const $=id=>document.getElementById(id);
 const hide=(id,yes=true)=>$(id).classList.toggle('hidden',yes);
@@ -155,7 +155,9 @@ bind();const invitation=new URLSearchParams(location.search).get('invite');if(in
  const present=g=>(g.galleries||[]).map(x=>x==='child'?'아이의 사진':'가족의 사진').join(' · ');
  function renderGroups(){
   const host=$('sharedGroupsList');host.replaceChildren();
-  for(const g of groups){
+  const selectedFilter=$('sharedGroupFilter')?.value||'all';
+  const filteredGroups=groups.filter(g=>selectedFilter==='all'||(selectedFilter==='mine'?g.created_by===user?.id:g.created_by!==user?.id));
+  for(const g of filteredGroups){
    const card=document.createElement('div');card.className='shared-group-card';
    const content=document.createElement('div');content.className='shared-group-info';
    const heading=document.createElement('strong');heading.textContent=g.name;
@@ -210,7 +212,7 @@ bind();const invitation=new URLSearchParams(location.search).get('invite');if(in
    }
    host.append(card);
   }
-  status(groups.length?`공동 묶음 ${groups.length}개 · 이름과 분류만 서버에 저장됨`:'아직 공동 사진묶음이 없습니다. 첫 묶음을 만들어보세요.');
+  status(groups.length?`공동 묶음 총 ${groups.length}개 · 현재 표시 ${filteredGroups.length}개 · 이름과 분류만 서버 저장`:'아직 공동 사진묶음이 없습니다. 첫 묶음을 만들어보세요.');
  }
  async function reload(){
   if(!sb||!user||!familyId){status('로그인 후 이용할 수 있습니다.');return}
@@ -223,6 +225,24 @@ bind();const invitation=new URLSearchParams(location.search).get('invite');if(in
  $('sharedGroupsButton').onclick=()=>{if(!user||!familyId){toast('먼저 가족사진관에 로그인하세요.');return}open('sharedGroupsModal');reload()};
  const leave=()=>close('sharedGroupsModal');$('sharedGroupsClose').onclick=leave;$('sharedGroupsDone').onclick=leave;
  $('sharedGroupRefresh').onclick=reload;
+ $('sharedGroupFilter').onchange=renderGroups;
+ $('familyAccessCheck').onclick=async()=>{
+  const result=$('familyAccessResult'),button=$('familyAccessCheck');
+  if(!user||!familyId){result.textContent='로그인된 가족 계정이 없습니다.';return}
+  button.disabled=true;result.textContent='Supabase에서 가족 권한과 사진묶음 조회를 확인하는 중…';
+  try{
+   const [membershipResult, groupResult, countResult]=await Promise.all([
+    sb.from('memberships').select('role').eq('family_id',familyId).eq('user_id',user.id).single(),
+    sb.from('photo_groups').select('id,created_by').eq('family_id',familyId).limit(500),
+    sb.from('memberships').select('user_id').eq('family_id',familyId)
+   ]);
+   const membership=assert(membershipResult),items=assert(groupResult),memberRows=assert(countResult);
+   if(!membership)throw Error('가족 가입 정보를 읽지 못했습니다.');
+   const mine=items.filter(g=>g.created_by===user.id).length,others=items.length-mine;
+   result.textContent=`✅ 내 계정 가족 인증 확인 · 역할: ${membership.role==='admin'?'관리자':'가족'} · 등록된 가족 계정 ${memberRows.length}명 · 사진묶음 ${items.length}개 (내가 만든 ${mine}개 / 다른 가족 ${others}개). 이는 현재 계정의 조회 시험이며 다른 가족 로그인·비회원 차단 시험을 대신하지 않습니다.`;
+  }catch(err){result.textContent='⚠️ 점검 실패: '+err.message}
+  finally{button.disabled=false}
+ };
  $('sharedGroupCreate').onclick=async()=>{
   if(!user||!familyId)return;
   const name=$('sharedGroupName').value.trim(),galleries=categories();

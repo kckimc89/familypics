@@ -62,3 +62,11 @@
 .shared-edit-actions{display:flex;flex-wrap:wrap;gap:8px}
 .shared-edit-actions button{min-width:110px}
 @media(max-width:560px){.shared-edit-actions button{flex:1}}
+
+/* V1.6 family collaboration checks */
+.shared-family-check{padding:14px 16px;margin:14px 0;border:1px solid #d8ded7;border-radius:12px;background:#f4f7f2;}
+.shared-check-title{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+.shared-family-check p{margin:8px 0 0;line-height:1.55;overflow-wrap:anywhere;}
+.group-filter-row{display:flex;align-items:center;gap:12px;margin:8px 0 15px;flex-wrap:wrap;}
+.group-filter-row label{font-size:13px;font-weight:600;}
+.group-filter-row select{width:auto;min-width:190px;max-width:100%;}
