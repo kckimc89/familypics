@@ -1,4 +1,4 @@
-/* 우리 가족 사진관 MASTER V1.2 — GitHub Pages + Supabase */
+/* 우리 가족 사진관 MASTER V1.3 — GitHub Pages + Supabase */
 'use strict';
 const $=id=>document.getElementById(id);
 const hide=(id,yes=true)=>$(id).classList.toggle('hidden',yes);
@@ -32,8 +32,8 @@ async function loadData(){if(!familyId)return;const [a,p,l,f,m]=await Promise.al
  albums=assert(a);photos=assert(p);links=assert(l);favorites=new Set(assert(f).map(x=>x.photo_id));members=assert(m);updateOptions();render()}
 function opt(sel,items,placeholder){const prev=sel.value;sel.innerHTML=placeholder?'<option value="">'+esc(placeholder)+'</option>':'';items.forEach(a=>{const el=document.createElement('option');el.value=a.id;el.textContent=a.name;sel.append(el)});if([...sel.options].some(o=>o.value===prev))sel.value=prev}
 function updateOptions(){opt($('albumFilter'),albums,'모든 앨범');opt($('uploadAlbums'),albums);opt($('editAlbums'),albums);const names=[...new Set(photos.flatMap(p=>p.people||[]).map(s=>s.trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'));opt($('personFilter'),names.map(n=>({id:n,name:n})),'모든 인물')}
-function filtered(){const q=$('search').value.trim().toLowerCase(),aid=$('albumFilter').value,person=$('personFilter').value,month=$('dateFilter').value;return photos.filter(p=>{if(view==='trash'?!p.deleted_at:!!p.deleted_at)return false;if(view==='favorites'&&!favorites.has(p.id))return false;if((view==='child'||view==='family')&&!(p.galleries||['family']).includes(view))return false;if((view==='albums'&&selectedAlbum)&&!links.some(l=>l.photo_id===p.id&&l.album_id===selectedAlbum))return false;if(aid&&!links.some(l=>l.photo_id===p.id&&l.album_id===aid))return false;if(person&&!(p.people||[]).includes(person))return false;if(month&&!(p.taken_on||'').startsWith(month))return false;return !q||[p.title,p.caption,p.original_name,(p.people||[]).join(' ')].join(' ').toLowerCase().includes(q)})}
-function render(){const labels={all:'모든 사진',child:'아이의 사진',family:'가족의 사진',albums:'앨범별로 보기',favorites:'나의 즐겨찾기',trash:'휴지통'};$('gridTitle').textContent=labels[view];$('childCount').textContent=photos.filter(p=>!p.deleted_at&&(p.galleries||['family']).includes('child')).length+'장';$('familyCount').textContent=photos.filter(p=>!p.deleted_at&&(p.galleries||['family']).includes('family')).length+'장';$all('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));hide('albumCards',view!=='albums');if(view==='albums'){const html=['<button class="album-card" data-album=""><span>🖼️</span><strong>모든 앨범</strong><small>전체 보기</small></button>',...albums.map(a=>`<button class="album-card" data-album="${esc(a.id)}"><span>${a.kind==='person'?'👤':'📂'}</span><strong>${esc(a.name)}</strong><small>${links.filter(l=>l.album_id===a.id).length}장</small></button>`)].join('');$('albumCards').innerHTML=html;$all('[data-album]').forEach(el=>{el.style.outline=el.dataset.album===selectedAlbum?'2px solid #8b7967':'none';el.onclick=()=>{selectedAlbum=el.dataset.album;render()}})}
+function filtered(){const q=$('search').value.trim().toLowerCase(),aid=$('albumFilter').value,person=$('personFilter').value,month=$('dateFilter').value;return photos.filter(p=>{if(view==='trash'?!p.deleted_at:!!p.deleted_at)return false;if(view==='favorites'&&!favorites.has(p.id))return false;if(view==='mine'&&p.owner_id!==user?.id)return false;if((view==='child'||view==='family')&&!(p.galleries||['family']).includes(view))return false;if((view==='albums'&&selectedAlbum)&&!links.some(l=>l.photo_id===p.id&&l.album_id===selectedAlbum))return false;if(aid&&!links.some(l=>l.photo_id===p.id&&l.album_id===aid))return false;if(person&&!(p.people||[]).includes(person))return false;if(month&&!(p.taken_on||'').startsWith(month))return false;return !q||[p.title,p.caption,p.original_name,(p.people||[]).join(' ')].join(' ').toLowerCase().includes(q)})}
+function render(){const labels={all:'모든 사진',child:'아이의 사진',family:'가족의 사진',albums:'앨범별로 보기',favorites:'나의 즐겨찾기',mine:'내가 등록한 사진',trash:'휴지통'};$('gridTitle').textContent=labels[view];$('childCount').textContent=photos.filter(p=>!p.deleted_at&&(p.galleries||['family']).includes('child')).length+'장';$('familyCount').textContent=photos.filter(p=>!p.deleted_at&&(p.galleries||['family']).includes('family')).length+'장';$all('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));hide('albumCards',view!=='albums');if(view==='albums'){const html=['<button class="album-card" data-album=""><span>🖼️</span><strong>모든 앨범</strong><small>전체 보기</small></button>',...albums.map(a=>`<button class="album-card" data-album="${esc(a.id)}"><span>${a.kind==='person'?'👤':'📂'}</span><strong>${esc(a.name)}</strong><small>${links.filter(l=>l.album_id===a.id).length}장</small></button>`)].join('');$('albumCards').innerHTML=html;$all('[data-album]').forEach(el=>{el.style.outline=el.dataset.album===selectedAlbum?'2px solid #8b7967':'none';el.onclick=()=>{selectedAlbum=el.dataset.album;render()}})}
 viewList=filtered();$('count').textContent=`${viewList.length}장`;$('grid').replaceChildren();hide('empty',viewList.length>0);for(const [i,p] of viewList.entries()){const b=document.createElement('button');b.className='photo-card';b.innerHTML=`<img alt="" loading="lazy"><div class="meta"><strong>${esc(p.title||p.original_name||'우리 가족 사진')}</strong><small>${esc(p.taken_on||p.created_at.slice(0,10))}${favorites.has(p.id)?'　♥':''}</small></div>`;b.onclick=()=>openViewer(i);$('grid').append(b);imageUrl(p.thumb_path).then(url=>{if(b.isConnected)b.querySelector('img').src=url}).catch(()=>{b.querySelector('img').alt='사진을 표시할 수 없습니다'})}}
 async function r2Request(path,method='GET',blob=null){
  const session=assert(await sb.auth.getSession()).session;
@@ -90,3 +90,56 @@ function bind(){
  document.addEventListener('keydown',e=>{if($('viewer').classList.contains('hidden'))return;if(e.key==='Escape'){stopSlide();close('viewer')}else if(e.key==='ArrowRight')movePhoto(1);else if(e.key==='ArrowLeft')movePhoto(-1)})}
 function setAuthMode(mode){authMode=mode;$('modeLogin').classList.toggle('active',mode==='login');$('modeSignup').classList.toggle('active',mode==='signup');$('authSubmit').textContent=mode==='login'?'로그인':'가입하기';$('authMessage').textContent=''}
 bind();const invitation=new URLSearchParams(location.search).get('invite');if(invitation){$('joinCode').value=invitation;history.replaceState(null,'',location.pathname+location.hash)}init().catch(e=>{showMain();toast('초기화 실패: '+e.message)});
+
+
+// MASTER V1.4: 브라우저 메모리 전용 사진묶음 연습 — 서버/DB 쓰기 및 영구 저장 없음.
+(function setupGroupPractice(){
+ const need=['previewButton','previewModal','practiceGroup','practiceNewGroup','previewFiles','previewGrid','previewStage'];
+ if(need.some(id=>!$(id)))return;
+ let groups=[],selected='',items=[],visible=[],active=0,timer=null;
+ const stop=()=>{if(timer)clearInterval(timer);timer=null;$('previewSlide').textContent='▶ 자동 슬라이드'};
+ const group=()=>groups.find(g=>g.id===selected);
+ const title=()=>group()?.name||'사진묶음';
+ const closeStage=()=>{stop();hide('previewStage');$('practiceMedia').replaceChildren()};
+ function redraw(){
+  const sel=$('practiceGroup');sel.replaceChildren();
+  for(const g of groups){const o=document.createElement('option');o.value=g.id;o.textContent=g.name+' ('+items.filter(x=>x.group===g.id).length+')';sel.append(o)}
+  if(groups.some(g=>g.id===selected))sel.value=selected;
+  visible=items.filter(x=>x.group===selected);$('previewGrid').replaceChildren();
+  visible.forEach((item,index)=>{
+   const card=document.createElement('div');card.className='practice-card';
+   const btn=document.createElement('button');btn.type='button';btn.className='photo-card';
+   const thumb=item.file.type.startsWith('video/')?document.createElement('video'):document.createElement('img');thumb.src=item.url;
+   if(thumb.tagName==='VIDEO'){thumb.muted=true;thumb.preload='metadata';thumb.playsInline=true}else{thumb.alt=item.name;thumb.loading='lazy'}
+   const meta=document.createElement('div');meta.className='meta';const strong=document.createElement('strong');strong.textContent=item.name;const small=document.createElement('small');small.textContent=item.file.type.startsWith('video/')?'▶ 동영상':item.categories.join(' · ');meta.append(strong,small);
+   btn.append(thumb,meta);btn.onclick=()=>showStage(index);card.append(btn);
+   const remove=document.createElement('button');remove.type='button';remove.className='practice-remove';remove.textContent='이 사진 제외';remove.onclick=()=>{if(!confirm('시험용 묶음에서 이 파일을 제외할까요? 노트북의 원본 파일은 삭제되지 않습니다.'))return;closeStage();URL.revokeObjectURL(item.url);items=items.filter(x=>x!==item);redraw()};card.append(remove);$('previewGrid').append(card);
+  });
+  $('previewCount').textContent=groups.length?`현재 「${title()}」 ${visible.length}개 · 전체 ${items.length}개 · 서버 저장 없음`:'먼저 사진묶음을 만들어 주세요.';
+  $('practiceRename').disabled=!group();$('practiceDelete').disabled=!group();
+ }
+ function makeGroup(name){if(!name?.trim())return;const g={id:crypto.randomUUID(),name:name.trim().slice(0,80)};groups.push(g);selected=g.id;closeStage();redraw()}
+ function showStage(index){if(!visible.length)return;stop();active=(index+visible.length)%visible.length;const item=visible[active],host=$('practiceMedia');host.replaceChildren();const el=document.createElement(item.file.type.startsWith('video/')?'video':'img');el.src=item.url;if(el.tagName==='VIDEO'){el.controls=true;el.playsInline=true;el.preload='metadata'}else el.alt=item.name;host.append(el);$('previewPosition').textContent=`${title()} · ${active+1} / ${visible.length}`;$('previewTitle').textContent=item.name;hide('previewStage',false)}
+ function clearAll(){closeStage();for(const x of items)URL.revokeObjectURL(x.url);items=[];groups=[];selected='';$('previewFiles').value='';redraw()}
+ const leave=()=>{clearAll();close('previewModal')};
+ $('previewButton').onclick=()=>open('previewModal');$('previewClose').onclick=leave;$('previewDone').onclick=leave;
+ $('previewClear').onclick=()=>{if(items.length&&!confirm('시험 중인 모든 사진묶음과 미리보기 목록을 비울까요? 원본 파일에는 영향이 없습니다.'))return;clearAll()};
+ $('practiceNewGroup').onclick=()=>{const name=prompt('새 사진묶음 이름 (예: 아이의 첫 등교)');if(name?.trim())makeGroup(name)};
+ $('practiceGroup').onchange=e=>{selected=e.target.value;closeStage();redraw()};
+ $('practiceRename').onclick=()=>{const g=group();if(!g)return;const name=prompt('사진묶음 이름',g.name);if(name?.trim()){g.name=name.trim().slice(0,80);redraw()}};
+ $('practiceDelete').onclick=()=>{const g=group();if(!g)return;if(!confirm(`「${g.name}」 묶음을 지울까요? 시험용 목록에서만 제외됩니다.`))return;closeStage();for(const x of items.filter(x=>x.group===g.id))URL.revokeObjectURL(x.url);items=items.filter(x=>x.group!==g.id);groups=groups.filter(x=>x.id!==g.id);selected=groups[0]?.id||'';redraw()};
+ $('previewFiles').onchange=e=>{
+  if(!group()){toast('먼저 사진묶음을 만들어 주세요.');e.target.value='';return}
+  const files=Array.from(e.target.files||[]).filter(f=>f.type.startsWith('image/')||f.type.startsWith('video/')).slice(0,100);
+  const categories=[$('previewChild').checked?'아이의 사진':null,$('previewFamily').checked?'가족의 사진':null].filter(Boolean);
+  if(!categories.length){toast('사진관을 하나 이상 선택해 주세요.');e.target.value='';return}
+  for(const file of files){items.push({file,name:file.name,url:URL.createObjectURL(file),group:selected,categories})}
+  e.target.value='';closeStage();redraw();toast(`${files.length}개 파일을 「${title()}」에 추가했습니다 (시험용)`)
+ };
+ $('previewPrev').onclick=()=>showStage(active-1);$('previewNext').onclick=()=>showStage(active+1);
+ $('previewHideStage').onclick=closeStage;
+ $('previewSlide').onclick=()=>{if(timer){stop();return}if(visible.length<2){toast('슬라이드에는 파일이 2개 이상 필요합니다.');return}timer=setInterval(()=>{active=(active+1)%visible.length;const item=visible[active];showStageWithoutStop(item)},4000);$('previewSlide').textContent='Ⅱ 슬라이드 일시정지'};
+ function showStageWithoutStop(item){const host=$('practiceMedia');host.replaceChildren();const el=document.createElement(item.file.type.startsWith('video/')?'video':'img');el.src=item.url;if(el.tagName==='VIDEO'){el.controls=true;el.playsInline=true}else el.alt=item.name;host.append(el);$('previewPosition').textContent=`${title()} · ${active+1} / ${visible.length}`;$('previewTitle').textContent=item.name;}
+ document.addEventListener('keydown',e=>{if($('previewModal').classList.contains('hidden'))return;if(e.key==='Escape')leave();else if(!$('previewStage').classList.contains('hidden')&&e.key==='ArrowRight')showStage(active+1);else if(!$('previewStage').classList.contains('hidden')&&e.key==='ArrowLeft')showStage(active-1)});
+ window.addEventListener('pagehide',clearAll);redraw();
+})();

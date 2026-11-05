@@ -19,3 +19,25 @@
 .safety-alert{padding:12px;border-radius:10px;background:#fff1e6;color:#83442b}
 #copyInviteLink{margin:8px 0;background:#f4eee7}
 @media(max-width:560px){.storage-notice{flex-direction:column;align-items:flex-start}.manage-section{padding:0 10px 10px}.manage-section .footer-actions button{width:100%}}
+
+/* MASTER V1.3 - 임시 사진 미리보기 */
+.preview-dialog{width:min(100%,950px)!important;max-height:95vh}
+.preview-safety{font-size:14px;line-height:1.6;background:#f0f5f0;border:1px solid #d9e6d6;border-radius:12px;padding:12px 15px}
+.preview-drop{display:block;margin:14px 0}.preview-options{display:flex;gap:18px;flex-wrap:wrap}.preview-options .check{margin:6px 0}
+.preview-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.preview-grid .photo-card img{aspect-ratio:4/3;object-fit:cover}
+.preview-stage{margin:16px 0;padding:12px;border-radius:18px;background:#272420;color:#fff;text-align:center}
+.preview-stage img{max-height:54vh;max-width:100%;height:auto;width:auto;object-fit:contain;border-radius:8px}
+.preview-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}.preview-toolbar button{background:#4d4843;color:#fff;border:0}
+.preview-stage .footer-actions{justify-content:center}.preview-stage .footer-actions button{background:#4d4843;color:#fff;border:0}
+.preview-title{overflow-wrap:anywhere;font-size:14px}.preview-dialog>.footer-actions{flex-wrap:wrap}
+@media(max-width:560px){.preview-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.preview-dialog{padding:13px}.preview-toolbar button{padding:8px}.preview-stage img{max-height:40vh}}
+
+/* MASTER V1.4 묶음 연습 */
+.practice-group-row{display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-top:16px}
+.practice-group-row label{flex:1;min-width:180px;margin:0}.practice-group-row select{width:100%;margin-top:5px}
+.practice-group-row button{white-space:nowrap}
+.practice-card{min-width:0}.practice-card .photo-card{width:100%;display:block}.practice-remove{display:block;margin:6px auto 14px;font-size:12px;padding:7px 9px}
+.practice-card video{width:100%;height:125px;object-fit:cover;background:#252525;border-radius:9px}
+.practice-media img,.practice-media video{max-width:100%;max-height:54vh;width:auto;height:auto;object-fit:contain;border-radius:8px}
+.practice-media{display:flex;align-items:center;justify-content:center;min-height:180px}
+@media(max-width:560px){.practice-group-row{align-items:stretch}.practice-group-row label{flex-basis:100%}.practice-card video{height:112px}}
