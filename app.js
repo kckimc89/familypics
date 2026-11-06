@@ -336,8 +336,12 @@ bind();const invitation=new URLSearchParams(location.search).get('invite');if(in
   catch(e){status('목록을 읽을 수 없습니다. Supabase에서 V1.5 SQL을 먼저 실행했는지 확인하세요. ('+e.message+')');$('sharedGroupsList').replaceChildren()}
   finally{loadingGroups=false}
  }
- $('sharedGroupsButton').onclick=()=>{if(!user||!familyId){toast('먼저 가족사진관에 로그인하세요.');return}open('sharedGroupsModal');reload()};
+ $('sharedGroupsButton').onclick=()=>{if(!user||!familyId){toast('먼저 가족사진관에 로그인하세요.');return}open('sharedGroupsModal');showCreate(false);reload()};
  const leave=()=>close('sharedGroupsModal');$('sharedGroupsClose').onclick=leave;$('sharedGroupsDone').onclick=leave;
+ const createPanel=$('sharedCreatePanel'),createToggle=$('sharedGroupNewToggle');
+ const showCreate=visible=>{createPanel.classList.toggle('hidden',!visible);createToggle.setAttribute('aria-expanded',String(visible));createToggle.textContent=visible?'－ 새 묶음 닫기':'＋ 새 사진묶음';if(visible)$('sharedGroupName').focus();};
+ createToggle.onclick=()=>showCreate(createPanel.classList.contains('hidden'));
+ $('sharedGroupNewCancel').onclick=()=>showCreate(false);
  $('sharedGroupRefresh').onclick=reload;
  $('sharedGroupFilter').onchange=renderGroups;
  $('sharedGroupSearch').oninput=renderGroups;
@@ -366,7 +370,7 @@ bind();const invitation=new URLSearchParams(location.search).get('invite');if(in
   const button=$('sharedGroupCreate');button.disabled=true;
   try{
    assert(await sb.from('photo_groups').insert({family_id:familyId,created_by:user.id,name,galleries}).select('id').single());
-   $('sharedGroupName').value='';toast('사진묶음 정보를 저장했습니다.');await reload();
+   $('sharedGroupName').value='';showCreate(false);toast('사진묶음 정보를 저장했습니다.');await reload();
   }catch(e){toast('묶음 저장 실패: '+e.message)}finally{button.disabled=false}
  };
 })();

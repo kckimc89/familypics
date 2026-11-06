@@ -99,3 +99,16 @@
   .shared-create{padding:12px;}
   .shared-create>label{font-size:14px;}
 }
+
+/* MASTER V1.8: compact, accessible shared-group controls */
+.shared-version{display:inline-block;font-size:12px;font-weight:700;color:#705b4c;background:#f1e8de;padding:4px 8px;border-radius:99px;vertical-align:middle;white-space:nowrap;letter-spacing:0}
+.shared-groups-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 0}
+.shared-groups-toolbar button{min-height:42px}
+.shared-create-actions{display:flex;gap:9px;flex-wrap:wrap}
+.shared-short-help{font-size:12px;line-height:1.6;color:#82766b;margin:9px 0 12px}
+.shared-access-details{border:1px solid #e9e0d6;border-radius:12px;margin-top:14px;padding:0 12px}
+.shared-access-details>summary{cursor:pointer;font-size:13px;font-weight:650;padding:13px 3px}
+.shared-access-details .shared-family-check{margin:0 0 12px}
+.shared-groups-dialog>.preview-safety{font-size:12px;margin:8px 0}
+.shared-groups-dialog .group-filter-row{margin-top:7px}
+@media(max-width:600px){.shared-groups-toolbar{margin:10px 0}.shared-groups-toolbar button{padding:10px 12px}.shared-groups-dialog .dialog-head h2{font-size:19px}.shared-create-actions button{flex:1}.shared-groups-dialog>.preview-safety{padding:9px 11px}}
