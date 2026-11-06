@@ -112,3 +112,8 @@
 .shared-groups-dialog>.preview-safety{font-size:12px;margin:8px 0}
 .shared-groups-dialog .group-filter-row{margin-top:7px}
 @media(max-width:600px){.shared-groups-toolbar{margin:10px 0}.shared-groups-toolbar button{padding:10px 12px}.shared-groups-dialog .dialog-head h2{font-size:19px}.shared-create-actions button{flex:1}.shared-groups-dialog>.preview-safety{padding:9px 11px}}
+
+/* V1.8.2: discrete permission diagnostics */
+.shared-trial-admin{border-top:1px solid #e5ded6;margin-top:14px;padding-top:14px;display:grid;gap:8px}
+#memberSecurityTrial{margin:12px 0;padding:14px;border:1px solid #e7e1d8;border-radius:12px;background:#f3f6f2}
+#memberSecurityTrial strong,.shared-trial-admin strong{display:block}

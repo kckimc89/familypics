@@ -15,10 +15,10 @@
 <div class="section-head"><h2 id="gridTitle">사진 모아보기</h2><span id="count" class="muted"></span></div><div id="albumCards" class="album-cards hidden"></div><div id="grid" class="photo-grid"></div><div id="empty" class="empty hidden"><div class="empty-icon">📷</div><h3>아직 사진이 없습니다</h3><p>가족의 첫 순간을 올려주세요.</p></div></section>
 </main>
 
-<!-- MASTER V1.8.1: compact shared groups UI; ownership UI retained. Media remains disabled. -->
+<!-- MASTER V1.8.2: compact shared groups UI; ownership UI retained. Media remains disabled. -->
 <div id="sharedGroupsModal" class="overlay hidden" role="dialog" aria-modal="true" aria-label="공동 사진묶음 관리">
  <div class="dialog wide shared-groups-dialog">
-  <div class="dialog-head"><h2>📁 가족 공동 사진묶음 <small id="sharedGroupsVersion" class="shared-version" aria-label="공동 사진묶음 버전">MASTER V1.8.1</small></h2><button type="button" id="sharedGroupsClose" class="close" aria-label="닫기">✕</button></div>
+  <div class="dialog-head"><h2>📁 가족 공동 사진묶음 <small id="sharedGroupsVersion" class="shared-version" aria-label="공동 사진묶음 버전">MASTER V1.8.2</small></h2><button type="button" id="sharedGroupsClose" class="close" aria-label="닫기">✕</button></div>
   <p class="preview-safety">🔐 <strong>사진묶음 이름과 분류만 Supabase에 저장</strong>합니다. 가족 모두가 같은 묶음 목록을 볼 수 있습니다. 실제 사진·동영상 파일은 아직 서버에 올리지 않습니다.</p>
   <div class="shared-groups-toolbar">
     <button id="sharedGroupNewToggle" type="button" class="primary" aria-expanded="false" aria-controls="sharedCreatePanel">＋ 새 사진묶음</button>
@@ -33,6 +33,12 @@
   </div>
   <div class="group-filter-row"><label for="sharedGroupFilter">묶음 찾아보기</label><select id="sharedGroupFilter"><option value="all">전체 사진묶음</option><option value="mine">내가 만든 묶음</option><option value="others">다른 가족이 만든 묶음</option></select><input id="sharedGroupSearch" type="search" placeholder="사진묶음 이름 검색" aria-label="사진묶음 이름 검색"></div>
   <p id="sharedGroupsStatus" class="muted" role="status">목록을 불러오는 중입니다.</p>
+  <div id="memberSecurityTrial" class="shared-family-check hidden" role="region" aria-label="시험용 권한 차단 확인">
+    <strong>🔐 다른 가족 사진묶음 권한 시험</strong>
+    <p class="help">관리자가 만든 「권한 시험용」 묶음에만 수정·삭제 요청을 보냅니다. 기존 가족사진묶음은 시험하지 않습니다.</p>
+    <button id="memberSecurityTry" type="button" class="subtle">수정·삭제 차단 시험</button>
+    <p id="memberSecurityResult" class="help" role="status">관리자가 시험묶음을 만들면 검사할 수 있습니다.</p>
+  </div>
   <div id="sharedGroupsList" class="shared-groups-list"></div>
   <p class="shared-short-help">묶음을 누르면 상세 내용을 볼 수 있습니다. 본인이 만든 묶음만 수정할 수 있습니다.</p>
   <div class="footer-actions"><button id="sharedGroupsDone" type="button">닫기</button></div>
@@ -67,7 +73,13 @@
    <div class="shared-family-check" aria-label="가족 공유 확인">
     <div class="shared-check-title"><strong>가족 공유 확인</strong><button id="familyAccessCheck" type="button" class="subtle">접근 상태 확인</button></div>
     <p id="familyAccessResult" class="muted" role="status">현재 가족의 권한과 서버 저장 상태를 확인할 수 있습니다.</p>
-    <p class="help">이 점검은 현재 계정의 읽기 권한만 확인하며, 서버에서 비회원의 쓰기를 차단하는지까지 검증하지 않습니다.</p>
+    <p class="help">읽기 점검과 별도로, 일반 가족 계정에서 실제 RLS 쓰기 차단을 시험할 수 있습니다. 기존 사진묶음에는 시험 요청을 보내지 않습니다.</p>
+    <div class="shared-trial-admin">
+      <strong>🧪 권한 시험용 묶음 (기존 자료와 분리)</strong>
+      <p class="help">관리자가 시험용 묶음을 만들고, 다른 가족 계정에서 차단 시험을 한 뒤 이곳에서 정리합니다.</p>
+      <div class="shared-create-actions"><button id="createSecurityTrial" type="button" class="subtle">시험용 묶음 만들기</button><button id="cleanupSecurityTrial" type="button" class="subtle">시험용 묶음 정리</button></div>
+      <p id="adminSecurityTrialResult" class="help" role="status">아직 시험하지 않았습니다.</p>
+    </div>
    </div>
   </details><details class="manage-section"><summary>💾 백업과 자료 보호</summary><h3>백업과 자료 보호</h3><p class="help">메타데이터 JSON과 사진 정보와 원본 사진은 각각 내려받습니다. ZIP은 소량 시험용입니다. 전체 백업을 위해서는 서버 측 분할 백업 기능이 추가로 필요합니다.</p><div class="footer-actions wrap"><button id="exportMetadata">앨범·사진 정보 백업(JSON)</button><button id="exportPhotos">원본 사진 백업(ZIP · 소량용)</button><button id="importMetadata">정보 복원(JSON)</button><input id="importFile" type="file" accept="application/json,.json" class="hidden"></div><p id="backupStatus" class="message"></p></details></div></div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script><script src="config.js?v=1.8.1"></script><script src="app.js?v=1.8.1" defer></script></body></html>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script><script src="config.js?v=1.8.2"></script><script src="app.js?v=1.8.2" defer></script></body></html>

@@ -1,4 +1,4 @@
-/* 우리 가족 사진관 MASTER V1.8.1 — 관리자 점검 분리, 기존 IndexedDB 인증 유지 */
+/* 우리 가족 사진관 MASTER V1.8.2 — 관리자 점검 분리, 기존 IndexedDB 인증 유지 */
 'use strict';
 const $=id=>document.getElementById(id);
 const hide=(id,yes=true)=>$(id).classList.toggle('hidden',yes);
@@ -257,6 +257,9 @@ bind();const invitation=new URLSearchParams(location.search).get('invite');if(in
  let groups=[],loadingGroups=false;
  const status=s=>{$('sharedGroupsStatus').textContent=s};
  const isManager=g=>g.created_by===user?.id||role==='admin';
+ const TRIAL_PREFIX='__FAMILY_SECURITY_TRIAL_V182__';
+ const trialName=()=>TRIAL_PREFIX+String(Date.now());
+ const trialGroups=()=>groups.filter(g=>g.name.startsWith(TRIAL_PREFIX));
  const categories=()=>[$('sharedGroupChild').checked?'child':null,$('sharedGroupFamily').checked?'family':null].filter(Boolean);
  const present=g=>(g.galleries||[]).map(x=>x==='child'?'아이의 사진':'가족의 사진').join(' · ');
  function renderGroups(){
@@ -264,7 +267,9 @@ bind();const invitation=new URLSearchParams(location.search).get('invite');if(in
   const selectedFilter=$('sharedGroupFilter')?.value||'all';
   const searchText=($('sharedGroupSearch')?.value||'').trim().toLocaleLowerCase('ko-KR');
   const filteredGroups=groups.filter(g=>(selectedFilter==='all'||(selectedFilter==='mine'?g.created_by===user?.id:g.created_by!==user?.id))&&(!searchText||g.name.toLocaleLowerCase('ko-KR').includes(searchText)));
+  updateTrialVisibility();
   for(const g of filteredGroups){
+   if(g.name.startsWith(TRIAL_PREFIX))continue;
    const card=document.createElement('article');card.className='shared-group-card';
    const details=document.createElement('details');details.className='shared-group-details';
    const summary=document.createElement('summary');summary.className='shared-group-summary';
@@ -324,10 +329,83 @@ bind();const invitation=new URLSearchParams(location.search).get('invite');if(in
    }
    details.append(content);card.append(details);host.append(card);
   }
-  status(groups.length?`공동 묶음 총 ${groups.length}개 · 현재 표시 ${filteredGroups.length}개 · 이름과 분류만 서버 저장`:'아직 공동 사진묶음이 없습니다. 첫 묶음을 만들어보세요.');
-  if(groups.length&&!filteredGroups.length){const empty=document.createElement('p');empty.className='help';empty.textContent='검색 조건에 맞는 묶음이 없습니다.';host.append(empty)}
+  const normalGroups=groups.filter(g=>!g.name.startsWith(TRIAL_PREFIX));
+  const normalFiltered=filteredGroups.filter(g=>!g.name.startsWith(TRIAL_PREFIX));
+  status(normalGroups.length?`공동 묶음 총 ${normalGroups.length}개 · 현재 표시 ${normalFiltered.length}개 · 이름과 분류만 서버 저장`:'아직 공동 사진묶음이 없습니다. 첫 묶음을 만들어보세요.');
+  if(normalGroups.length&&!normalFiltered.length){const empty=document.createElement('p');empty.className='help';empty.textContent='검색 조건에 맞는 묶음이 없습니다.';host.append(empty)}
  }
 
+
+ // Disposable test rows only; never send trial writes to a real family photo group.
+ function updateTrialVisibility(){
+  const eligible=role==='member'&&trialGroups().some(g=>g.created_by!==user?.id);
+  $('memberSecurityTrial').classList.toggle('hidden',!eligible);
+ }
+ async function makeSecurityTrial(){
+  const output=$('adminSecurityTrialResult'),button=$('createSecurityTrial');
+  if(role!=='admin'||!familyId||!user)return;
+  if(trialGroups().some(g=>g.created_by===user.id)){output.textContent='이미 시험용 묶음이 있습니다. 다른 가족 계정에서 시험한 뒤 정리해 주세요.';return}
+  if(!confirm('시험용 사진묶음 1개를 생성할까요? 실제 사진과 기존 묶음은 변경하지 않습니다.'))return;
+  button.disabled=true;
+  try{
+   const created=assert(await sb.from('photo_groups').insert({family_id:familyId,created_by:user.id,name:trialName(),galleries:['family']}).select('id').single());
+   if(!created?.id)throw Error('서버 생성 확인 실패');
+   output.textContent='시험용 묶음이 준비되었습니다. 이제 다른 가족 계정에서 공동 사진묶음을 열고 「수정·삭제 차단 시험」을 눌러주세요.';
+   await reload();
+  }catch(err){output.textContent='시험용 묶음 생성 실패: '+err.message}
+  finally{button.disabled=false}
+ }
+ async function testSecurityAsMember(){
+  const result=$('memberSecurityResult'),button=$('memberSecurityTry');
+  if(role!=='member'||!user||!familyId){result.textContent='일반 가족 계정에서만 시험할 수 있습니다.';return}
+  // Only an admin-created disposable trial group, never the owner's actual group.
+  const trial=trialGroups().find(g=>g.created_by!==user.id);
+  if(!trial){result.textContent='시험용 묶음이 없습니다. 관리자에게 먼저 시험묶음 생성을 요청해 주세요.';return}
+  if(!confirm('관리자가 만든 시험용 묶음에만 수정·삭제 차단 요청을 보냅니다. 진행할까요?'))return;
+  button.disabled=true;result.textContent='Supabase에서 수정 권한을 확인하는 중…';
+  const classify=response=>{
+   if(!response.error)return (response.data||[]).length>0?'ALLOWED':'BLOCKED';
+   if(response.error.code==='42501'||response.status===401||response.status===403)return 'BLOCKED';
+   return 'UNKNOWN: '+response.error.message;
+  };
+  try{
+   const update=await sb.from('photo_groups').update({name:TRIAL_PREFIX+'denied-test-'+String(Date.now())}).eq('id',trial.id).eq('family_id',familyId).select('id');
+   const u=classify(update);
+   if(u!=='BLOCKED'){
+    result.textContent=u==='ALLOWED'?'❌ 보안 실패: 일반 가족이 다른 사람의 시험묶음을 수정했습니다. 사진 등록을 계속 차단하고 정책을 수정해야 합니다.':'⚠️ 수정 시험 판정 불가: '+u;
+    await reload();return;
+   }
+   result.textContent='수정 차단 확인. 삭제 권한을 확인하는 중…';
+   const deletion=await sb.from('photo_groups').delete().eq('id',trial.id).eq('family_id',familyId).select('id');
+   const d=classify(deletion);
+   result.textContent=d==='BLOCKED'?'✅ 쓰기 차단 시험 통과: 일반 가족 계정에서 다른 가족의 시험묶음 수정과 삭제가 모두 거부되었습니다.':d==='ALLOWED'?'❌ 보안 실패: 다른 가족의 시험묶음 삭제가 허용되었습니다. 사진 등록을 계속 차단하세요.':'⚠️ 수정 차단은 확인했지만 삭제 판정 불가: '+d;
+   await reload();
+  }catch(err){result.textContent='⚠️ 시험 중 오류로 판정할 수 없습니다: '+err.message}
+  finally{button.disabled=false}
+ }
+ async function cleanupSecurityTrial(){
+  const output=$('adminSecurityTrialResult'),button=$('cleanupSecurityTrial');
+  if(role!=='admin'||!user||!familyId)return;
+  await reload();
+  const owned=trialGroups().filter(g=>g.created_by===user.id);
+  if(!owned.length){output.textContent='정리할 시험용 묶음이 없습니다.';return}
+  if(!confirm(`내가 만든 권한 시험용 묶음 ${owned.length}개만 삭제할까요?`))return;
+  button.disabled=true;let removed=0;
+  try{
+   for(const g of owned){
+    // Exact id + family + creator and trial prefix validated from server results.
+    const response=await sb.from('photo_groups').delete().eq('id',g.id).eq('family_id',familyId).eq('created_by',user.id).select('id');
+    if(response.error)throw response.error;
+    removed+=(response.data||[]).length;
+   }
+   output.textContent=`시험용 묶음 ${removed}개를 정리했습니다. 기존 가족사진묶음은 변경하지 않았습니다.`;
+   await reload();
+  }catch(err){output.textContent='시험용 묶음 정리 실패: '+err.message}
+  finally{button.disabled=false}
+ }
+ $('createSecurityTrial').onclick=makeSecurityTrial;
+ $('cleanupSecurityTrial').onclick=cleanupSecurityTrial;
+ $('memberSecurityTry').onclick=testSecurityAsMember;
  async function reload(){
   if(!sb||!user||!familyId){status('로그인 후 이용할 수 있습니다.');return}
   if(loadingGroups)return;
