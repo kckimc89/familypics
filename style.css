@@ -70,3 +70,32 @@
 .group-filter-row{display:flex;align-items:center;gap:12px;margin:8px 0 15px;flex-wrap:wrap;}
 .group-filter-row label{font-size:13px;font-weight:600;}
 .group-filter-row select{width:auto;min-width:190px;max-width:100%;}
+
+/* V1.7: 작은 모바일 화면에서도 사진묶음을 한눈에 찾아보도록 간결한 카드 사용 */
+.shared-groups-dialog{width:min(100%,760px)!important;max-height:min(92dvh,900px);}
+.shared-group-card{display:block;padding:0;min-width:0;overflow:hidden;}
+.shared-group-details{width:100%;min-width:0;}
+.shared-group-summary{cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 16px;list-style:none;min-width:0;}
+.shared-group-summary::-webkit-details-marker{display:none;}
+.shared-group-info{min-width:0;flex:1;display:grid;gap:5px;}
+.shared-group-info strong{font-size:16px;overflow-wrap:anywhere;}
+.shared-group-info small{font-size:12px;line-height:1.45;overflow-wrap:anywhere;}
+.shared-group-chevron{font-size:22px;color:#857569;line-height:1;transition:transform .15s;}
+.shared-group-details[open] .shared-group-chevron{transform:rotate(180deg);}
+.shared-group-content{border-top:1px solid #eee6df;padding:12px 16px 16px;}
+.shared-group-content>.help{font-size:12px;line-height:1.55;margin:0 0 10px;}
+.group-filter-row input[type=search]{flex:1;min-width:160px;width:auto;max-width:100%;padding:11px;border-radius:10px;border:1px solid var(--border);}
+@media(max-width:600px){
+  .shared-groups-dialog{height:min(95dvh,100%);max-height:95dvh;padding:15px!important;border-radius:18px;}
+  .shared-groups-dialog .dialog-head h2{font-size:20px;}
+  .shared-group-summary{padding:13px 12px;}
+  .shared-group-info strong{font-size:15px;}
+  .shared-group-content{padding:11px 12px 14px;}
+  .shared-group-actions button{font-size:13px;padding:10px 7px;}
+  .group-filter-row{display:grid;grid-template-columns:1fr;gap:8px;}
+  .group-filter-row select,.group-filter-row input[type=search]{width:100%;max-width:none;min-width:0;}
+  .shared-family-check{padding:11px 12px;}
+  .shared-family-check .help{font-size:12px;}
+  .shared-create{padding:12px;}
+  .shared-create>label{font-size:14px;}
+}

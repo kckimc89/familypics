@@ -1,4 +1,4 @@
-/* 우리 가족 사진관 MASTER V1.6 — GitHub Pages + Supabase */
+/* 우리 가족 사진관 MASTER V1.7 — GitHub Pages + Supabase */
 'use strict';
 const $=id=>document.getElementById(id);
 const hide=(id,yes=true)=>$(id).classList.toggle('hidden',yes);
@@ -156,19 +156,26 @@ bind();const invitation=new URLSearchParams(location.search).get('invite');if(in
  function renderGroups(){
   const host=$('sharedGroupsList');host.replaceChildren();
   const selectedFilter=$('sharedGroupFilter')?.value||'all';
-  const filteredGroups=groups.filter(g=>selectedFilter==='all'||(selectedFilter==='mine'?g.created_by===user?.id:g.created_by!==user?.id));
+  const searchText=($('sharedGroupSearch')?.value||'').trim().toLocaleLowerCase('ko-KR');
+  const filteredGroups=groups.filter(g=>(selectedFilter==='all'||(selectedFilter==='mine'?g.created_by===user?.id:g.created_by!==user?.id))&&(!searchText||g.name.toLocaleLowerCase('ko-KR').includes(searchText)));
   for(const g of filteredGroups){
-   const card=document.createElement('div');card.className='shared-group-card';
-   const content=document.createElement('div');content.className='shared-group-info';
+   const card=document.createElement('article');card.className='shared-group-card';
+   const details=document.createElement('details');details.className='shared-group-details';
+   const summary=document.createElement('summary');summary.className='shared-group-summary';
+   const info=document.createElement('span');info.className='shared-group-info';
    const heading=document.createElement('strong');heading.textContent=g.name;
-   const detail=document.createElement('small');detail.textContent=present(g)+' · '+(g.created_by===user?.id?'내가 만든 묶음':'가족이 만든 묶음')+' · '+new Date(g.created_at).toLocaleDateString('ko-KR');
-   content.append(heading,detail);card.append(content);
+   const line=document.createElement('small');line.textContent=present(g)+' · '+(g.created_by===user?.id?'내가 만든 묶음':'가족이 만든 묶음')+' · '+new Date(g.created_at).toLocaleDateString('ko-KR');
+   info.append(heading,line);
+   const chevron=document.createElement('span');chevron.className='shared-group-chevron';chevron.textContent='⌄';chevron.setAttribute('aria-hidden','true');
+   summary.append(info,chevron);details.append(summary);
+   const content=document.createElement('div');content.className='shared-group-content';
+   const note=document.createElement('p');note.className='help';note.textContent='현재 사진묶음 이름과 분류만 서버에 저장됩니다. 사진·동영상 공동 등록은 비공개 저장소 검증 후 제공됩니다.';content.append(note);
    if(isManager(g)){
     const controls=document.createElement('div');controls.className='shared-group-actions';
     const edit=document.createElement('button');edit.type='button';edit.textContent='이름·분류 수정';
     edit.onclick=()=>{
-     // 편집은 신규 묶음 입력창과 분리합니다. 기존 묶음의 ID만 수정합니다.
-     if(card.querySelector('.shared-inline-editor'))return;
+     if(content.querySelector('.shared-inline-editor'))return;
+     details.open=true;
      const form=document.createElement('form');form.className='shared-inline-editor';
      const nameLabel=document.createElement('label');nameLabel.textContent='수정할 사진묶음 이름';
      const nameInput=document.createElement('input');nameInput.type='text';nameInput.maxLength=80;nameInput.required=true;nameInput.value=g.name;
@@ -186,7 +193,7 @@ bind();const invitation=new URLSearchParams(location.search).get('invite');if(in
      const cancel=document.createElement('button');cancel.type='button';cancel.textContent='취소';
      cancel.onclick=()=>{form.remove();edit.disabled=false;};
      actions.append(save,cancel);form.append(nameLabel,fieldset,actions);
-     card.append(form);edit.disabled=true;nameInput.focus();
+     content.append(form);edit.disabled=true;nameInput.focus();
      form.addEventListener('submit',async e=>{
       e.preventDefault();
       const name=nameInput.value.trim();
@@ -196,7 +203,6 @@ bind();const invitation=new URLSearchParams(location.search).get('invite');if(in
       save.disabled=true;cancel.disabled=true;save.textContent='저장 중…';
       try{
        assert(await sb.from('photo_groups').update({name,galleries:values}).eq('id',g.id).eq('family_id',familyId).select('id').single());
-       // 편집 성공 후 목록 재조회. 서버 저장 실패 시 기존 항목을 유지합니다.
        toast('변경 사항을 저장했습니다.');await reload();
       }catch(err){toast('변경 저장 실패: '+err.message);save.disabled=false;cancel.disabled=false;save.textContent='변경 저장'}
      });
@@ -208,12 +214,14 @@ bind();const invitation=new URLSearchParams(location.search).get('invite');if(in
      try{assert(await sb.from('photo_groups').delete().eq('id',g.id).eq('family_id',familyId).select('id').single());toast('묶음을 삭제했습니다.');await reload()}
      catch(e){toast('삭제 실패: '+e.message)}finally{del.disabled=false}
     };
-    controls.append(edit,del);card.append(controls);
+    controls.append(edit,del);content.append(controls);
    }
-   host.append(card);
+   details.append(content);card.append(details);host.append(card);
   }
   status(groups.length?`공동 묶음 총 ${groups.length}개 · 현재 표시 ${filteredGroups.length}개 · 이름과 분류만 서버 저장`:'아직 공동 사진묶음이 없습니다. 첫 묶음을 만들어보세요.');
+  if(groups.length&&!filteredGroups.length){const empty=document.createElement('p');empty.className='help';empty.textContent='검색 조건에 맞는 묶음이 없습니다.';host.append(empty)}
  }
+
  async function reload(){
   if(!sb||!user||!familyId){status('로그인 후 이용할 수 있습니다.');return}
   if(loadingGroups)return;
@@ -226,6 +234,7 @@ bind();const invitation=new URLSearchParams(location.search).get('invite');if(in
  const leave=()=>close('sharedGroupsModal');$('sharedGroupsClose').onclick=leave;$('sharedGroupsDone').onclick=leave;
  $('sharedGroupRefresh').onclick=reload;
  $('sharedGroupFilter').onchange=renderGroups;
+ $('sharedGroupSearch').oninput=renderGroups;
  $('familyAccessCheck').onclick=async()=>{
   const result=$('familyAccessResult'),button=$('familyAccessCheck');
   if(!user||!familyId){result.textContent='로그인된 가족 계정이 없습니다.';return}
