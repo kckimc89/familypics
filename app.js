@@ -1,10 +1,50 @@
-/* 우리 가족 사진관 MASTER V1.7 — GitHub Pages + Supabase */
+/* 우리 가족 사진관 MASTER V1.7.1 — Safari 저장소 오류 대응 */
 'use strict';
 const $=id=>document.getElementById(id);
 const hide=(id,yes=true)=>$(id).classList.toggle('hidden',yes);
 const cfg=window.FAMILY_PHOTO_CONFIG||{};
 const ready=!!(cfg.supabaseUrl&&cfg.supabaseAnonKey&&!cfg.supabaseUrl.includes('YOUR_PROJECT')&&!cfg.supabaseAnonKey.includes('YOUR_')&&window.supabase);
-const sb=ready?window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey):null;
+// GitHub Pages의 동일 출처를 쓰는 다른 백과사전 저장 공간은 절대 지우지 않습니다.
+// Supabase 인증정보는 이 프로젝트의 키만 사용하며 localStorage가 가득 찬 경우
+// sessionStorage → 현재 탭 메모리 순서로 안전하게 대체합니다.
+const authStorageState={mode:'local',warned:false};
+const authMemory=new Map();
+function storageRead(store,key){try{return store.getItem(key)}catch(_){return null}}
+function storageWrite(store,key,val){try{store.setItem(key,val);return true}catch(_){return false}}
+function storageRemove(store,key){try{store.removeItem(key)}catch(_){}}
+const authStorage={
+ getItem(key){
+  if(authMemory.has(key))return authMemory.get(key); // null = 의도적으로 제거함
+  const fromSession=storageRead(window.sessionStorage,key);
+  if(fromSession!==null)return fromSession;
+  return storageRead(window.localStorage,key);
+ },
+ setItem(key,value){
+  authMemory.set(key,value);
+  if(storageWrite(window.localStorage,key,value)){
+   authStorageState.mode='local'; storageRemove(window.sessionStorage,key);
+  }else if(storageWrite(window.sessionStorage,key,value)){
+   authStorageState.mode='session';
+  }else{authStorageState.mode='memory'}
+  // 이 프로젝트 인증 키 외의 다른 사이트 자료에는 접근하지 않습니다.
+  if(authStorageState.mode!=='local')showAuthStorageWarning();
+ },
+ removeItem(key){
+  authMemory.set(key,null);
+  storageRemove(window.localStorage,key);
+  storageRemove(window.sessionStorage,key);
+ }
+};
+function showAuthStorageWarning(){
+ if(authStorageState.warned)return;
+ authStorageState.warned=true;
+ // 화면 초기화 중이라도 후속 렌더링 때 안내할 수 있도록 상태만 기록합니다.
+ const status=document.getElementById('authStorageNotice');
+ for(const id of ['authStorageNotice','mainStorageWarning']){const el=document.getElementById(id);if(el){el.textContent='이 기기의 웹 저장 공간이 부족하여 로그인 정보를 임시로 보관합니다. 사진과 앨범은 삭제되지 않지만 브라우저를 종료하면 재로그인이 필요할 수 있습니다.';el.classList.remove('hidden')}}
+}
+const sb=ready?window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey,{
+ auth:{storage:authStorage,persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
+}):null;
 const B='family-photos'; // Legacy read-only: new uploads NEVER fall back to Supabase Storage
 const r2Enabled=!!(cfg.workerUrl&&cfg.workerUrl.startsWith('https://')&&!cfg.workerUrl.includes('YOUR_'));
 const urlCache=new Map();
@@ -21,8 +61,26 @@ function assert(data){if(data?.error)throw data.error;return data?.data}
 function busy(button,yes){button.disabled=yes;button.dataset.old??=button.textContent;button.textContent=yes?'처리 중…':button.dataset.old}
 function updateStorageNotice(){const el=$('storageNotice');if(!el)return;el.classList.toggle('hidden',photoWritesEnabled);$('uploadButton').textContent=photoWritesEnabled?'＋ 사진 올리기':'🔒 사진 등록 준비 중';$('uploadButton').title=photoWritesEnabled?'사진 등록':'비공개 사진 서버 확인 후 활성화됩니다';}
 function showMain(){hide('setup',true);hide('authPanel',true);hide('familyPanel',true);hide('app',true);hide('headerActions',!user);if(!ready)hide('setup',false);else if(!user)hide('authPanel',false);else if(!familyId)hide('familyPanel',false);else{hide('app',false);$('identity').textContent=user.email||'';$('familyDisplay').textContent=familyName;hide('manageButton',role!=='admin');hide('trashNav',role!=='admin');updateStorageNotice()}}
-async function init(){if(!ready){showMain();return}const {data:{session}}=await sb.auth.getSession();user=session?.user||null;await loadAccount();sb.auth.onAuthStateChange((_event,session)=>{user=session?.user||null;setTimeout(()=>loadAccount().catch(err=>toast(err.message)),0)})}
-async function loadAccount(){if(!user){familyId=null;showMain();return}const saved=localStorage.getItem('family-photo-selected-'+user.id);const ms=assert(await sb.from('memberships').select('family_id,role').eq('user_id',user.id));let m=ms.find(r=>r.family_id===saved)||ms[0];if(!m){familyId=null;showMain();return}familyId=m.family_id;role=m.role;localStorage.setItem('family-photo-selected-'+user.id,familyId);const f=assert(await sb.from('families').select('name').eq('id',familyId).single());familyName=f.name;showMain();await loadData()}
+async function init(){
+ if(!ready){showMain();return}
+ // 로그인 이벤트는 Supabase 내부 잠금 밖에서 처리합니다.
+ sb.auth.onAuthStateChange((_event,session)=>{
+  user=session?.user||null;
+  setTimeout(()=>loadAccount().catch(err=>showAccountError(err)),0);
+ });
+ const {data,error}=await sb.auth.getSession();
+ if(error)throw error;
+ user=data.session?.user||null;
+ await loadAccount();
+}
+function showAccountError(err){
+ const message='로그인 후 가족 정보 조회에 문제가 있습니다: '+(err?.message||String(err));
+ const el=$('authMessage');
+ if(el)el.textContent=message;
+ toast(message);
+}
+
+async function loadAccount(){if(!user){familyId=null;showMain();return}const saved=storageRead(window.sessionStorage,'family-photo-selected-'+user.id)||storageRead(window.localStorage,'family-photo-selected-'+user.id);const ms=assert(await sb.from('memberships').select('family_id,role').eq('user_id',user.id));let m=ms.find(r=>r.family_id===saved)||ms[0];if(!m){familyId=null;showMain();return}familyId=m.family_id;role=m.role;if(!storageWrite(window.localStorage,'family-photo-selected-'+user.id,familyId))storageWrite(window.sessionStorage,'family-photo-selected-'+user.id,familyId);const f=assert(await sb.from('families').select('name').eq('id',familyId).single());familyName=f.name;showMain();await loadData()}
 async function loadData(){if(!familyId)return;const [a,p,l,f,m]=await Promise.all([
  sb.from('albums').select('*').eq('family_id',familyId).order('created_at'),
  sb.from('photos').select('*').eq('family_id',familyId).order('taken_on',{ascending:false,nullsFirst:false}).order('created_at',{ascending:false}).limit(1000),
@@ -78,7 +136,7 @@ async function exportPhotos(){if(!r2Enabled){$('backupStatus').textContent='원�
 async function importMetadata(file){try{const obj=JSON.parse(await file.text());if(obj.format!=='family-photo-master-v1'||!Array.isArray(obj.photos)||!Array.isArray(obj.albums))throw Error('지원하지 않는 백업 파일');if(!confirm('앨범과 기존 사진의 제목/설명을 백업 내용으로 복원할까요? 원본 사진 파일은 복원되지 않으며, 현재 가족의 같은 ID를 가진 사진만 수정합니다.'))return;let n=0;for(const a of obj.albums){if(albums.some(x=>x.id===a.id))continue;assert(await sb.from('albums').insert({family_id:familyId,name:a.name,kind:a.kind}));n++}for(const p of obj.photos){const existing=photos.find(x=>x.id===p.id);if(!existing)continue;if(existing.owner_id!==user.id&&role!=='admin')continue;assert(await sb.from('photos').update({title:p.title||'',caption:p.caption||'',taken_on:p.taken_on||null,people:Array.isArray(p.people)?p.people:[],galleries:Array.isArray(p.galleries)&&p.galleries.length?p.galleries:['family']}).eq('id',p.id))}await loadData();renderManage();$('backupStatus').textContent=`정보 복원 완료. 앨범 ${n}개 추가. (사진 자체는 가져오지 않습니다)`}catch(e){$('backupStatus').textContent='복원 실패: '+e.message}}
 function setView(next){stopSlide();view=next;selectedAlbum='';render()}
 function bind(){
- $('modeLogin').onclick=()=>setAuthMode('login');$('modeSignup').onclick=()=>setAuthMode('signup');$('authForm').onsubmit=async e=>{e.preventDefault();const btn=$('authSubmit');busy(btn,true);$('authMessage').textContent='';try{const credentials={email:$('email').value.trim(),password:$('password').value};const res=authMode==='login'?await sb.auth.signInWithPassword(credentials):await sb.auth.signUp(credentials);assert(res);$('authMessage').textContent=authMode==='signup'&&!res.data.session?'가입 메일을 확인하고 인증한 뒤 로그인하세요.':'로그인되었습니다.'}catch(e){$('authMessage').textContent=e.message}finally{busy(btn,false)}};
+ $('modeLogin').onclick=()=>setAuthMode('login');$('modeSignup').onclick=()=>setAuthMode('signup');$('authForm').onsubmit=async e=>{e.preventDefault();const btn=$('authSubmit');busy(btn,true);$('authMessage').textContent='';try{const credentials={email:$('email').value.trim(),password:$('password').value};const res=authMode==='login'?await sb.auth.signInWithPassword(credentials):await sb.auth.signUp(credentials);assert(res);if(res.data?.session){user=res.data.session.user;await loadAccount()}$('authMessage').textContent=authMode==='signup'&&!res.data.session?'가입 메일을 확인하고 인증한 뒤 로그인하세요.':(!familyId?'로그인되었습니다. 가족 참여 정보를 확인해 주세요.':'')}catch(e){$('authMessage').textContent=e.message}finally{busy(btn,false)}};
  $('createFamily').onclick=async()=>{try{assert(await sb.rpc('create_family',{family_name:$('familyName').value.trim()}));await loadAccount();toast('가족 사진관을 만들었습니다')}catch(e){toast(e.message)}};
  $('joinFamily').onclick=async()=>{try{assert(await sb.rpc('join_family',{invite_code:$('joinCode').value.trim()}));await loadAccount();toast('가족 사진관에 참여했습니다')}catch(e){toast(e.message)}};
  $('logout').onclick=async()=>{stopSlide();await sb.auth.signOut();user=null;familyId=null;showMain()};
