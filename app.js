@@ -1,47 +1,95 @@
-/* 우리 가족 사진관 MASTER V1.7.1 — Safari 저장소 오류 대응 */
+/* 우리 가족 사진관 MASTER V1.7.2 — IndexedDB 인증 유지 점검 */
 'use strict';
 const $=id=>document.getElementById(id);
 const hide=(id,yes=true)=>$(id).classList.toggle('hidden',yes);
 const cfg=window.FAMILY_PHOTO_CONFIG||{};
 const ready=!!(cfg.supabaseUrl&&cfg.supabaseAnonKey&&!cfg.supabaseUrl.includes('YOUR_PROJECT')&&!cfg.supabaseAnonKey.includes('YOUR_')&&window.supabase);
-// GitHub Pages의 동일 출처를 쓰는 다른 백과사전 저장 공간은 절대 지우지 않습니다.
-// Supabase 인증정보는 이 프로젝트의 키만 사용하며 localStorage가 가득 찬 경우
-// sessionStorage → 현재 탭 메모리 순서로 안전하게 대체합니다.
-const authStorageState={mode:'local',warned:false};
+// V1.7.2: 가족사진관 인증 키만 IndexedDB에 영구 저장합니다.
+// 다른 백과사전과 브라우저의 저장 자료는 조회·삭제하지 않습니다.
+// Supabase StorageAdapter는 Promise 기반 getItem/setItem/removeItem을 지원합니다.
+const authStorageState={mode:'checking',warned:false};
 const authMemory=new Map();
+const DB_NAME='family-photo-auth-v172';
+const DB_STORE='sessions';
+const OWN_AUTH_PREFIX='sb-'+(new URL(cfg.supabaseUrl||'https://unconfigured.invalid').hostname.split('.')[0])+'-auth-token';
 function storageRead(store,key){try{return store.getItem(key)}catch(_){return null}}
 function storageWrite(store,key,val){try{store.setItem(key,val);return true}catch(_){return false}}
 function storageRemove(store,key){try{store.removeItem(key)}catch(_){}}
+function storageModeNotice(){
+ const temporary=authStorageState.mode==='session'||authStorageState.mode==='memory';
+ const message=authStorageState.mode==='session'
+  ?'Safari의 영구 저장소를 사용할 수 없어 현재 탭에만 로그인 정보를 보관합니다. 탭을 닫으면 다시 로그인해야 할 수 있습니다. 다른 앱의 자료는 삭제하지 않았습니다.'
+  :'Safari에서 로그인 정보를 영구 저장하지 못했습니다. 이 탭에서는 사용할 수 있지만 닫으면 재로그인이 필요할 수 있습니다. 다른 앱의 자료는 삭제하지 않았습니다.';
+ for(const id of ['authStorageNotice','mainStorageWarning']){const el=$(id);if(el){el.classList.toggle('hidden',!temporary);if(temporary)el.textContent=message}}
+}
+function setStorageMode(mode){authStorageState.mode=mode;storageModeNotice()}
+let openAuthDbPromise=null;
+function openAuthDb(){
+ if(openAuthDbPromise)return openAuthDbPromise;
+ openAuthDbPromise=new Promise((resolve,reject)=>{
+  if(!window.indexedDB){reject(new Error('IndexedDB unavailable'));return}
+  let request;
+  try{request=window.indexedDB.open(DB_NAME,1)}catch(err){reject(err);return}
+  request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains(DB_STORE))request.result.createObjectStore(DB_STORE)};
+  request.onsuccess=()=>resolve(request.result);
+  request.onerror=()=>reject(request.error||new Error('IndexedDB open failed'));
+  request.onblocked=()=>reject(new Error('IndexedDB blocked'));
+ }).catch(err=>{openAuthDbPromise=null;throw err});
+ return openAuthDbPromise;
+}
+async function dbOperation(mode,key,value){
+ const db=await openAuthDb();
+ return new Promise((resolve,reject)=>{
+  let tx,request;
+  try{
+   tx=db.transaction(DB_STORE,mode);
+   const store=tx.objectStore(DB_STORE);
+   request=mode==='readonly'?store.get(key):(value===null?store.delete(key):store.put(value,key));
+  }catch(err){reject(err);return}
+  let result=null;
+  request.onsuccess=()=>{result=request.result??null};
+  tx.oncomplete=()=>resolve(result);
+  tx.onerror=()=>reject(tx.error||new Error('IndexedDB transaction failed'));
+  tx.onabort=()=>reject(tx.error||new Error('IndexedDB aborted'));
+ });
+}
+// 인증 이외의 키에 이 어댑터가 쓰이지 않도록 Supabase auth 저장 용도로만 연결합니다.
 const authStorage={
- getItem(key){
-  if(authMemory.has(key))return authMemory.get(key); // null = 의도적으로 제거함
-  const fromSession=storageRead(window.sessionStorage,key);
-  if(fromSession!==null)return fromSession;
-  return storageRead(window.localStorage,key);
+ async getItem(key){
+  // 영구 저장된 토큰을 우선합니다. 이전 버전의 sessionStorage/localStorage는 읽기만 하며,
+  // 성공적으로 새 영구 저장소로 옮긴 후 이 프로젝트 인증 키만 삭제합니다.
+  try{const value=await dbOperation('readonly',key);if(value!==null){setStorageMode('indexeddb');return value}}catch(_){/* 아래 저장소로 대체 */}
+  const oldLocal=storageRead(window.localStorage,key);
+  const oldSession=storageRead(window.sessionStorage,key);
+  // 최신 탭 로그인 값이 예전 localStorage 복사본보다 우선입니다.
+  const oldValue=oldSession??oldLocal;
+  if(oldValue!==null){
+   try{await dbOperation('readwrite',key,oldValue);storageRemove(window.localStorage,key);storageRemove(window.sessionStorage,key);setStorageMode('indexeddb')}
+   catch(_){setStorageMode(oldLocal!==null?'local':'session')}
+   return oldValue;
+  }
+  if(authMemory.has(key))return authMemory.get(key);
+  return null;
  },
- setItem(key,value){
+ async setItem(key,value){
   authMemory.set(key,value);
-  if(storageWrite(window.localStorage,key,value)){
-   authStorageState.mode='local'; storageRemove(window.sessionStorage,key);
-  }else if(storageWrite(window.sessionStorage,key,value)){
-   authStorageState.mode='session';
-  }else{authStorageState.mode='memory'}
-  // 이 프로젝트 인증 키 외의 다른 사이트 자료에는 접근하지 않습니다.
-  if(authStorageState.mode!=='local')showAuthStorageWarning();
+  try{
+   await dbOperation('readwrite',key,value);
+   // 쓰기 트랜잭션 완료 후에만 예전 토큰 복사본을 지웁니다.
+   storageRemove(window.localStorage,key);storageRemove(window.sessionStorage,key);
+   setStorageMode('indexeddb');return;
+  }catch(_){/* 영구 저장 불가: 다른 저장소를 시도합니다 */}
+  if(storageWrite(window.localStorage,key,value)){setStorageMode('local');return}
+  if(storageWrite(window.sessionStorage,key,value)){setStorageMode('session');return}
+  setStorageMode('memory');
  },
- removeItem(key){
-  authMemory.set(key,null);
-  storageRemove(window.localStorage,key);
-  storageRemove(window.sessionStorage,key);
+ async removeItem(key){
+  authMemory.delete(key);
+  // 로그아웃 시 보조 복사본까지 제거합니다. 다른 프로젝트의 키는 절대 수정하지 않습니다.
+  try{await dbOperation('readwrite',key,null)}catch(_){}
+  storageRemove(window.localStorage,key);storageRemove(window.sessionStorage,key);
  }
 };
-function showAuthStorageWarning(){
- if(authStorageState.warned)return;
- authStorageState.warned=true;
- // 화면 초기화 중이라도 후속 렌더링 때 안내할 수 있도록 상태만 기록합니다.
- const status=document.getElementById('authStorageNotice');
- for(const id of ['authStorageNotice','mainStorageWarning']){const el=document.getElementById(id);if(el){el.textContent='이 기기의 웹 저장 공간이 부족하여 로그인 정보를 임시로 보관합니다. 사진과 앨범은 삭제되지 않지만 브라우저를 종료하면 재로그인이 필요할 수 있습니다.';el.classList.remove('hidden')}}
-}
 const sb=ready?window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey,{
  auth:{storage:authStorage,persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
 }):null;
